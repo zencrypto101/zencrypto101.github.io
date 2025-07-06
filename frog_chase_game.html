@@ -1,0 +1,216 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>개구리 잡기 게임</title>
+<style>
+    body {
+        font-family: 'Malgun Gothic', sans-serif;
+        text-align: center;
+        background-color: #f0f8ff;
+        color: #333;
+    }
+    h1 {
+        color: #0056b3;
+    }
+    #game-area {
+        width: 800px;
+        height: 600px;
+        border: 2px solid #0056b3;
+        margin: 20px auto;
+        position: relative;
+        background-color: #e6f7ff;
+        overflow: hidden;
+        cursor: crosshair;
+    }
+    .character {
+        position: absolute;
+        font-size: 40px;
+        /* 사용자가 캐릭터 텍스트를 선택하는 것을 방지 */
+        user-select: none; 
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        transition: top 0.1s linear, left 0.1s linear;
+    }
+    #frog {
+        cursor: pointer;
+    }
+    #score-board {
+        font-size: 24px;
+        font-weight: bold;
+    }
+</style>
+</head>
+<body>
+
+<h1>다람쥐를 쫓는 개구리를 잡아보세요!</h1>
+<p id="score-board">점수: <span id="score">0</span></p>
+
+<div id="game-area">
+    <div id="frog" class="character">🐸</div>
+    <div id="squirrel" class="character">🐿️</div>
+</div>
+
+<script>
+    // --- 게임 요소 선택 ---
+    const gameArea = document.getElementById('game-area');
+    const frog = document.getElementById('frog');
+    const squirrel = document.getElementById('squirrel');
+    const scoreSpan = document.getElementById('score');
+
+    // --- 게임 변수 설정 ---
+    let score = 0;
+    let gameRunning = true; // 게임 진행 상태
+    let animationFrameId; // requestAnimationFrame ID
+
+    // 게임 영역의 크기 정보
+    const gameAreaRect = gameArea.getBoundingClientRect();
+
+    // 캐릭터들의 현재 위치 (좌표)
+    let frogPos = { x: 50, y: 50 };
+    let squirrelPos = { x: 300, y: 300 };
+    let squirrelTargetPos = { x: 300, y: 300 }; // 다람쥐의 목표 위치
+
+    // 속도 관련 변수
+    let frogBaseSpeed = 2.8; // 개구리 기본 속도 증가
+    let frogSpeed = frogBaseSpeed;
+    let squirrelSpeed = 0.4; // 다람쥐 이동 속도 (매우 느리게)
+    let randomFactor = { x: 0, y: 0 };
+
+
+    // --- 게임 로직 ---
+
+    // 1. 게임을 초기화하거나 재시작하는 함수
+    function resetGame() {
+        score = 0;
+        scoreSpan.textContent = score;
+        gameRunning = true;
+        
+        frogPos = { x: 50, y: 50 };
+        squirrelPos = { x: Math.random() * (gameAreaRect.width - 40), y: Math.random() * (gameAreaRect.height - 40) };
+        setNewSquirrelTarget();
+
+        frog.style.opacity = '1';
+        frog.style.cursor = 'pointer';
+
+        // 기존 게임 루프가 있다면 중지
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+        }
+        
+        startGame();
+    }
+
+    // 2. 다람쥐의 새로운 목표 지점을 설정하는 함수
+    function setNewSquirrelTarget() {
+        if (!gameRunning) return;
+        squirrelTargetPos.x = Math.random() * (gameAreaRect.width - 40);
+        squirrelTargetPos.y = Math.random() * (gameAreaRect.height - 40);
+    }
+
+    // 3. 개구리를 잡았을 때 처리하는 함수
+    frog.addEventListener('click', (event) => {
+        if (!gameRunning) return;
+        
+        event.stopPropagation(); 
+        score++;
+        scoreSpan.textContent = score;
+
+        frog.style.opacity = '0';
+        setTimeout(() => {
+            frogPos.x = Math.random() * (gameAreaRect.width - 40);
+            frogPos.y = Math.random() * (gameAreaRect.height - 40);
+            frog.style.opacity = '1';
+        }, 300);
+
+        setNewSquirrelTarget(); // 다람쥐도 새로운 곳으로 목표 변경
+    });
+
+    // 4. 개구리 움직임에 무작위성을 추가하는 함수
+    function updateRandomFactor() {
+        randomFactor.x = (Math.random() - 0.5) * 2; 
+        randomFactor.y = (Math.random() - 0.5) * 2;
+        frogSpeed = frogBaseSpeed * (1 + Math.random() * 1.5); // 속도 변동폭 살짝 줄임
+    }
+
+
+    // 5. 게임의 핵심! 매 프레임마다 캐릭터들을 움직임
+    function gameLoop() {
+        if (!gameRunning) return;
+
+        // --- 다람쥐 움직임 처리 ---
+        const sq_dx = squirrelTargetPos.x - squirrelPos.x;
+        const sq_dy = squirrelTargetPos.y - squirrelPos.y;
+        const sq_dist = Math.sqrt(sq_dx * sq_dx + sq_dy * sq_dy);
+
+        if (sq_dist > 1) { // 목표에 도달하지 않았으면 이동
+            squirrelPos.x += (sq_dx / sq_dist) * squirrelSpeed;
+            squirrelPos.y += (sq_dy / sq_dist) * squirrelSpeed;
+        }
+        squirrel.style.left = squirrelPos.x + 'px';
+        squirrel.style.top = squirrelPos.y + 'px';
+
+
+        // --- 개구리 움직임 처리 ---
+        const fr_dx = squirrelPos.x - frogPos.x;
+        const fr_dy = squirrelPos.y - frogPos.y;
+        const fr_dist = Math.sqrt(fr_dx * fr_dx + fr_dy * fr_dy);
+
+        // 게임 오버 조건: 개구리가 다람쥐에게 닿았을 때
+        if (fr_dist < 20) {
+            gameRunning = false;
+            frog.style.cursor = 'default';
+            
+            setTimeout(() => {
+                if (confirm('죽었어! start again?')) { // 메시지 변경
+                    resetGame();
+                }
+            }, 100);
+            return; 
+        }
+
+        const targetVec = { x: fr_dx / fr_dist, y: fr_dy / fr_dist };
+        
+        const moveVec = {
+            x: targetVec.x + randomFactor.x * 0.4,
+            y: targetVec.y + randomFactor.y * 0.4
+        };
+        
+        const moveMagnitude = Math.sqrt(moveVec.x * moveVec.x + moveVec.y * moveVec.y);
+        const finalVec = {
+            x: (moveVec.x / moveMagnitude) * frogSpeed,
+            y: (moveVec.y / moveMagnitude) * frogSpeed
+        };
+
+        frogPos.x += finalVec.x;
+        frogPos.y += finalVec.y;
+
+        frogPos.x = Math.max(0, Math.min(gameAreaRect.width - 40, frogPos.x));
+        frogPos.y = Math.max(0, Math.min(gameAreaRect.height - 40, frogPos.y));
+
+        frog.style.left = frogPos.x + 'px';
+        frog.style.top = frogPos.y + 'px';
+
+        animationFrameId = requestAnimationFrame(gameLoop);
+    }
+
+    // --- 게임 시작 ---
+    function startGame() {
+        // 3초마다 다람쥐의 목표 지점 변경
+        setInterval(setNewSquirrelTarget, 3000);
+        // 0.5초마다 개구리 움직임 특성(방향, 속도) 변경
+        setInterval(updateRandomFactor, 500);
+
+        setNewSquirrelTarget();
+        gameLoop();
+    }
+
+    // 최초 게임 시작
+    startGame();
+
+</script>
+
+</body>
+</html>
