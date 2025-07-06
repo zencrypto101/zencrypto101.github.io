@@ -1,0 +1,345 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Frog vs. Squirrel: The Great Exchange</title>
+<style>
+    body {
+        font-family: 'Verdana', sans-serif;
+        text-align: center;
+        background-color: #e8f4f8;
+        color: #333;
+        overflow: hidden;
+        user-select: none;
+    }
+    #game-container {
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        gap: 20px;
+        margin-top: 10px;
+    }
+    #game-area {
+        width: 800px;
+        height: 600px;
+        border: 3px solid #5c8d89;
+        position: relative;
+        background-color: #c8d8e4;
+        overflow: hidden;
+        cursor: none; /* Hide the default cursor */
+    }
+    #ui-panel {
+        width: 250px;
+        padding: 15px;
+        background-color: #f7f9fb;
+        border: 2px solid #b2c2bf;
+        border-radius: 10px;
+    }
+    h1, h2 {
+        color: #0056b3;
+        margin-top: 0;
+    }
+    .character {
+        position: absolute;
+        font-size: 36px;
+        transition: top 0.05s linear, left 0.05s linear;
+    }
+    #frog {
+        font-size: 48px;
+        z-index: 10;
+    }
+    #tongue {
+        position: absolute;
+        height: 6px;
+        background-color: #ff8a8a;
+        transform-origin: left center;
+        z-index: 9;
+        display: none;
+        border-radius: 3px;
+    }
+    #player-peanuts, #squirrel-hoard {
+        position: absolute;
+        font-size: 20px;
+        background-color: rgba(255, 255, 255, 0.7);
+        padding: 8px;
+        border-radius: 8px;
+        border: 2px solid #d2b48c;
+    }
+    #player-peanuts { bottom: 10px; left: 10px; }
+    #squirrel-hoard { top: 10px; right: 10px; }
+    #ending-screen {
+        position: absolute;
+        top: 0; left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(255, 255, 255, 0.9);
+        display: none; /* Initially hidden */
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        text-align: center;
+        z-index: 100;
+    }
+    #ending-scene {
+        font-size: 80px;
+    }
+    #ending-screen h2 {
+        font-size: 3em;
+        color: #2e8b57;
+    }
+</style>
+</head>
+<body>
+
+<h1>Frog vs. Squirrel: The Great Exchange</h1>
+
+<div id="game-container">
+    <div id="game-area">
+        <div id="frog" class="character">🐸</div>
+        <div id="tongue"></div>
+        <div id="player-peanuts">My Peanuts: 20</div>
+        <div id="squirrel-hoard">Squirrel's Hoard: 0</div>
+    </div>
+
+    <div id="ui-panel">
+        <h2>Status</h2>
+        <p><strong>Mosquitoes Caught:</strong> <span id="score">0</span> / 30</p>
+        <hr>
+        <h3>Instructions</h3>
+        <p>Left-click to catch mosquitoes near you.</p>
+        <p>Right-click to use your tongue to catch them from afar.</p>
+        <p>Catch 30 mosquitoes to win!</p>
+    </div>
+</div>
+
+<div id="ending-screen">
+    <div id="ending-scene">🐸💖🐿️</div>
+    <h2>And they lived happily ever after.</h2>
+    <button onclick="location.reload()">Play Again</button>
+</div>
+
+<script>
+// --- SETUP ---
+const gameArea = document.getElementById('game-area');
+const frog = document.getElementById('frog');
+const tongue = document.getElementById('tongue');
+const scoreEl = document.getElementById('score');
+const playerPeanutsEl = document.getElementById('player-peanuts');
+const squirrelHoardEl = document.getElementById('squirrel-hoard');
+const endingScreen = document.getElementById('ending-screen');
+const gameAreaRect = gameArea.getBoundingClientRect();
+
+// --- GAME STATE ---
+const WIN_SCORE = 30;
+const TRADE_AMOUNT = 3;
+let score = 0;
+let playerPeanuts = 20;
+let squirrelPeanuts = 0;
+let gameRunning = true;
+let frogPos = { x: gameAreaRect.width / 2, y: gameAreaRect.height / 2 };
+let mousePos = { ...frogPos };
+
+// --- ENTITIES ---
+let mosquitoes = [];
+let squirrel = null;
+
+// --- UTILITY FUNCTIONS ---
+function random(min, max) { return Math.random() * (max - min) + min; }
+function getDistance(pos1, pos2) {
+    const dx = pos1.x - pos2.x;
+    const dy = pos1.y - pos2.y;
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
+// --- UPDATE UI ---
+function updateUI() {
+    scoreEl.textContent = `${score} / ${WIN_SCORE}`;
+    playerPeanutsEl.textContent = `My Peanuts: ${'🥜'.repeat(playerPeanuts)}`;
+    squirrelHoardEl.textContent = `Squirrel's Hoard: ${'🥜'.repeat(squirrelPeanuts)}`;
+}
+
+// --- FROG CONTROLS ---
+function catchNearbyMosquitoes(catchPos) {
+    mosquitoes.forEach(m => {
+        if (getDistance(catchPos, m.pos) < 40) {
+            m.isCaught = true;
+        }
+    });
+}
+
+gameArea.addEventListener('mousemove', e => {
+    mousePos.x = e.clientX - gameAreaRect.left;
+    mousePos.y = e.clientY - gameAreaRect.top;
+});
+
+gameArea.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    if (!gameRunning) return;
+
+    tongue.style.display = 'block';
+    const angle = Math.atan2(mousePos.y - frogPos.y, mousePos.x - frogPos.x);
+    const distance = getDistance(frogPos, mousePos);
+    
+    tongue.style.left = frogPos.x + 'px';
+    tongue.style.top = (frogPos.y - tongue.offsetHeight / 2) + 'px';
+    tongue.style.width = distance + 'px';
+    tongue.style.transform = `rotate(${angle}rad)`;
+
+    catchNearbyMosquitoes(mousePos); // Catch with tongue tip
+
+    setTimeout(() => { tongue.style.display = 'none'; }, 300);
+});
+
+gameArea.addEventListener('click', () => {
+    if (!gameRunning) return;
+    catchNearbyMosquitoes(frogPos); // Catch with frog body
+});
+
+// --- MOSQUITO LOGIC ---
+function createMosquito() {
+    if (!gameRunning || mosquitoes.length > 8) return;
+    const element = document.createElement('div');
+    element.className = 'character';
+    element.textContent = '🦟';
+    gameArea.appendChild(element);
+    mosquitoes.push({
+        element: element,
+        pos: { x: random(0, gameAreaRect.width), y: random(0, gameAreaRect.height) },
+        velocity: { x: random(-1, 1), y: random(-1, 1) },
+        isCaught: false
+    });
+}
+
+// --- SQUIRREL LOGIC ---
+function createSquirrel() {
+    if (!gameRunning || squirrel) return;
+    const element = document.createElement('div');
+    element.className = 'character';
+    element.textContent = '🐿️';
+    gameArea.appendChild(element);
+    squirrel = {
+        element: element,
+        pos: { x: -40, y: random(0, gameAreaRect.height) },
+        state: 'stealing', // states: stealing, returning
+        hasPeanut: false
+    };
+}
+
+function handleSquirrelTrade() {
+    const tradeMessage = `I think I like mosquitoes better. Want to trade ${TRADE_AMOUNT} of them for the ${TRADE_AMOUNT} peanuts I just took?`;
+    if (confirm(tradeMessage)) {
+        if (score >= TRADE_AMOUNT) {
+            alert(`Great! A fair trade.`);
+            score -= TRADE_AMOUNT;
+            playerPeanuts += TRADE_AMOUNT;
+            squirrelPeanuts -= TRADE_AMOUNT;
+        } else {
+            alert("You don't have enough mosquitoes to trade! Maybe next time.");
+        }
+    } else {
+        alert("Okay, I'll keep the peanuts then!");
+    }
+    updateUI();
+}
+
+// --- ENDING LOGIC ---
+function triggerEnding() {
+    gameRunning = false;
+    endingScreen.style.display = 'flex';
+}
+
+// --- MAIN GAME LOOP ---
+function gameLoop() {
+    if (!gameRunning) return;
+
+    // Move Frog
+    frogPos.x += (mousePos.x - frogPos.x) * 0.2;
+    frogPos.y += (mousePos.y - frogPos.y) * 0.2;
+    frog.style.left = frogPos.x - frog.offsetWidth / 2 + 'px';
+    frog.style.top = frogPos.y - frog.offsetHeight / 2 + 'px';
+
+    // Process caught mosquitoes
+    const caughtMosquitoes = mosquitoes.filter(m => m.isCaught);
+    if (caughtMosquitoes.length > 0) {
+        caughtMosquitoes.forEach(m => m.element.remove());
+        mosquitoes = mosquitoes.filter(m => !m.isCaught);
+        score += caughtMosquitoes.length;
+        updateUI();
+        if (score >= WIN_SCORE) {
+            triggerEnding();
+        }
+    }
+
+    // Move Mosquitoes
+    mosquitoes.forEach(m => {
+        m.pos.x += m.velocity.x;
+        m.pos.y += m.velocity.y;
+        if (m.pos.x < 0 || m.pos.x > gameAreaRect.width) m.velocity.x *= -1;
+        if (m.pos.y < 0 || m.pos.y > gameAreaRect.height) m.velocity.y *= -1;
+        m.element.style.left = m.pos.x + 'px';
+        m.element.style.top = m.pos.y + 'px';
+    });
+
+    // Move Squirrel
+    if (squirrel) {
+        let targetPos;
+        const speed = 5; // Fast squirrel!
+
+        if (squirrel.state === 'stealing') {
+            targetPos = { x: 20, y: gameAreaRect.height - 20 }; // Player's pile
+            if (getDistance(squirrel.pos, targetPos) < 20) {
+                if (playerPeanuts > 0) {
+                    playerPeanuts--;
+                    squirrel.hasPeanut = true;
+                    squirrel.element.textContent = '🐿️🥜';
+                    squirrel.state = 'returning';
+                    updateUI();
+                } else {
+                    squirrel.state = 'returning'; // No peanuts to steal
+                }
+            }
+        } else { // returning state
+            targetPos = { x: gameAreaRect.width - 20, y: 20 }; // Squirrel's hoard
+            if (getDistance(squirrel.pos, targetPos) < 20) {
+                if (squirrel.hasPeanut) {
+                    squirrelPeanuts++;
+                    updateUI();
+                    if (squirrelPeanuts > 0 && squirrelPeanuts % TRADE_AMOUNT === 0) {
+                        handleSquirrelTrade();
+                    }
+                }
+                squirrel.element.remove();
+                squirrel = null;
+            }
+        }
+        
+        if (squirrel) {
+            const dx = targetPos.x - squirrel.pos.x;
+            const dy = targetPos.y - squirrel.pos.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > 1) {
+                squirrel.pos.x += (dx / dist) * speed;
+                squirrel.pos.y += (dy / dist) * speed;
+            }
+            squirrel.element.style.left = squirrel.pos.x + 'px';
+            squirrel.element.style.top = squirrel.pos.y + 'px';
+        }
+    }
+
+    requestAnimationFrame(gameLoop);
+}
+
+// --- START GAME ---
+function init() {
+    updateUI();
+    setInterval(createMosquito, 1500);
+    setInterval(createSquirrel, 4000);
+    gameLoop();
+}
+
+init();
+</script>
+
+</body>
+</html>
